@@ -9,11 +9,14 @@
 # These methods will be necessary for the project's main method to run.
 
 # Install Pillow and uncomment this line to access image processing.
-from PIL import Image, ImageChops as Chops
-import numpy
+from PIL import Image as Pillow, ImageChops as Chops, ImageOps as Ops
+import numpy as np
 import os
 import sys
 
+#System Variables
+ImgSize = (180,180)
+BlkLimit = 64
 
 class Agent:
     # The default constructor for your Agent. Make sure to execute any
@@ -23,6 +26,26 @@ class Agent:
     # main().
     def __init__(self):
         pass
+    # System Functions
+
+    def load(self, problem, key):
+        fileName = problem.figures[key].visualFilename
+        return Pillow.open(fileName)
+
+    # Pillow Functions
+
+    # Crops all images to standard size and washes them to absolute black and white
+    def wash(self,*images):
+        images = list(images)
+        for x in range(len(images)):
+            image = images[x]
+            image.resize(ImgSize)
+            grey = image.convert('L')
+            array = np.asanyarray(grey).copy()
+            array[array < BlkLimit] = 0
+            array[array > BlkLimit] = 255
+            images[x] = image
+        return images
 
     # The primary method for solving incoming Raven's Progressive Matrices.
     # For each problem, your Agent's Solve() method will be called. At the
@@ -36,7 +59,18 @@ class Agent:
     def Solve(self, problem):
         print("Trying to solve", problem.name, "// Type is: ", problem.problemType, " // Visual: ", problem.hasVisual,
               " // Verbal: ", problem.hasVerbal)
-
+        try:
+            # Get Problem Images and Normalize
+            imgA = self.load(problem, 'A')
+            imgB = self.load(problem, 'B')
+            imgC = self.load(problem, 'C')
+            imgA, imgB, imgC = self.wash(imgA, imgB, imgC)
+        except IOError as e:
+            print('Cant load image')
+            print(e)
+        except Exception as e:
+            print('Uncaught image load error')
+            print(e)
 
 
 
