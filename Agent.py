@@ -1,290 +1,143 @@
-# Your Agent for solving Raven's Progressive Matrices. You MUST modify this file.
-#
-# You may also create and submit new files in addition to modifying this file.
-#
-# Make sure your file retains methods with the signatures:
-# def __init__(self)
-# def Solve(self,problem)
-#
-# These methods will be necessary for the project's main method to run.
-
-# Install Pillow and uncomment this line to access image processing.
-from PIL import Image as Pillow, ImageChops as Chops, ImageOps as Ops
+from PIL import Image, ImageChops as Chops, ImageOps as Ops
+import Transformer
 import numpy as np
 import os
 import sys
 
-#System Variables
+
 ImgSize = (180,180)
-BlkLimit = 64
+ci= 98
 
 class Agent:
-    # The default constructor for your Agent. Make sure to execute any
-    # processing necessary before your Agent starts solving problems here.
-    #
-    # Do not add any variables to this signature; they will not be used by
-    # main().
+
     def __init__(self):
-        pass
-    # System Functions
+        self.root_dir = sys.path[0]
 
-    def load(self, problem, key):
-        fileName = problem.figures[key].visualFilename
-        return Pillow.open(fileName)
 
-    # Pillow Functions
-
-    # Crops all images to standard size and washes them to absolute black and white
-    def wash(self,*images):
-        images = list(images)
-        for x in range(len(images)):
-            image = images[x]
-            image.resize(ImgSize)
-            grey = image.convert('L')
-            array = np.asanyarray(grey).copy()
-            array[array < BlkLimit] = 0
-            array[array > BlkLimit] = 255
-            images[x] = image
-        return images
-
-    # The primary method for solving incoming Raven's Progressive Matrices.
-    # For each problem, your Agent's Solve() method will be called. At the
-    # conclusion of Solve(), your Agent should return an int representing its
-    # answer to the question: 1, 2, 3, 4, 5, or 6. Strings of these ints 
-    # are also the Names of the individual RavensFigures, obtained through
-    # RavensFigure.getName(). Return a negative number to skip a problem.
-    #
-    # Make sure to return your answer *as an integer* at the end of Solve().
-    # Returning your answer as a string may cause your program to crash.
     def Solve(self, problem):
         print("Trying to solve", problem.name, "// Type is: ", problem.problemType, " // Visual: ", problem.hasVisual,
               " // Verbal: ", problem.hasVerbal)
-        try:
-            # Get Problem Images and Normalize
-            imgA = self.load(problem, 'A')
-            imgB = self.load(problem, 'B')
-            imgC = self.load(problem, 'C')
-            imgA, imgB, imgC = self.wash(imgA, imgB, imgC)
-        except IOError as e:
-            print('Cant load image')
-            print(e)
-        except Exception as e:
-            print('Uncaught image load error')
-            print(e)
+        guess = -1
+        transA = []
+        transNum = None
+        answerList = []
+        fillList = []
+        if problem.problemType == "2x2":
+            try:
+                imgA = self.load(problem, 'A')
+                imgB = self.load(problem, 'B')
+                imgC = self.load(problem, 'C')
+                transA = self.runTrans(imgA, transA)
+                transNum = self.compare(imgB, transA)
+                if transNum == 17:
+                    transNum = self.compare(imgC, transA)
+                    answerImg = self.newTrans(transNum, imgB)
+                else:
+                    answerImg = self.newTrans(transNum, imgC)
+                img1 = self.load(problem, '1')
+                img2 = self.load(problem, '2')
+                img3 = self.load(problem, '3')
+                img4 = self.load(problem, '4')
+                img5 = self.load(problem, '5')
+                img6 = self.load(problem, '6')
+
+                answerList.append(img1)
+                answerList.append(img2)
+                answerList.append(img3)
+                answerList.append(img4)
+                answerList.append(img5)
+                answerList.append(img6)
+                if transNum == 17:
+                    print("Creating fill list")
+                    fillList.append(Transformer.answerFill(imgC, img1))
+                    fillList.append(Transformer.answerFill(imgC, img2))
+                    fillList.append(Transformer.answerFill(imgC, img3))
+                    imgTest3 = Transformer.answerFill(imgC, img3)
+                    imgTest3.save("_IMAGE3.png")
+                    fillList.append(Transformer.answerFill(imgC, img4))
+                    fillList.append(Transformer.answerFill(imgC, img5))
+                    imgTest5 = Transformer.answerFill(imgC, img5)
+                    imgTest5.save("_IMAGE5.png")
+                    fillList.append(Transformer.answerFill(imgC, img6))
+                    imgTest1 = Transformer.answerFill(imgC, img1)
+                    imgTest1.save("_IMAGE1.png")
+
+                if transNum == 17:
+                    print("trying a fill guess")
+                    guess = self.compare(imgC, fillList) + 1
+                else:
+                    print("trying a normal guess")
+                    guess = self.compare(answerImg, answerList) + 1
+                print("Final answer is: ", guess)
+            except Exception as e:
+                print(e)
+
+        return guess
+
+
+    def load(self, problem, key):
+        fileName = problem.figures[key].visualFilename
+        image = Image.open(os.path.join(self.root_dir, fileName))
+        image = image.convert('L')
+        image = image.resize(ImgSize)
+        return image
+
+    def runTrans(self, img,transList):
+        transList.append(img)
+        transList.append(Transformer.reflect_horz(img))
+        transList.append(Transformer.reflect_vert(img))
+        transList.append(Transformer.rotate(img, 45))
+        transList.append(Transformer.rotate(img, 90))
+        transList.append(Transformer.rotate(img, 135))
+        transList.append(Transformer.rotate(img, 180))
+        transList.append(Transformer.rotate(img, 225))
+        transList.append(Transformer.rotate(img, 270))
+        transList.append(Transformer.rotate(img, 315))
+        return transList
+    def compare(self, img, transList):
+        score = 0
+        for image in transList:
+           score = Transformer.getDif(img, image)
+           if score > ci:
+               print("match found")
+               image.save("_ANSWERIMAGE.png")
+               return transList.index(image)
+        print("Nothing matched")
+        return 17
+    def newTrans(self, transNum, image):
+        if transNum == 0:
+            return image
+        if transNum == 1:
+            return Transformer.reflect_horz(image)
+        if transNum == 2:
+            return Transformer.reflect_vert(image)
+        if transNum == 3:
+            return Transformer.rotate(image, 45)
+        if transNum == 4:
+            return Transformer.rotate(image, 90)
+        if transNum == 5:
+            return Transformer.rotate(image, 135)
+        if transNum == 6:
+            return Transformer.rotate(image, 180)
+        if transNum == 7:
+            return Transformer.rotate(image, 225)
+        if transNum == 8:
+            return Transformer.rotate(image, 270)
+        if transNum == 9:
+            return Transformer.rotate(image, 315)
 
+    def fillCompare(self, imgA, imgB, imgC):
+        aFill = Transformer.fill(imgA, imgB)
+        scoreB = Transformer.getDif(aFill, imgB)
+        scoreC = Transformer.getDif(aFill, imgC)
+        if scoreB > ci:
+            print("B Fill found")
+            return aFill
+        if scoreC > ci:
+            print("C Fill found")
+            return aFill
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        # # Declare Entity Lists
-        # figureList = []
-        # objectList = []
-        # attributeList = []
-        #
-        # # Declare Figure Lists for A
-        # objA= []
-        # attrA = {}
-        # shapeA = None
-        # sizeA = None
-        # fillA = None
-        #
-        # # Declare Figure Lists for B
-        # objB= []
-        # attrB = {}
-        # shapeB = None
-        # sizeB = None
-        # fillB = None
-        #
-        # # Declare Figure Lists for C
-        # objC = []
-        # attrC = {}
-        # shapeC = None
-        # sizeC = None
-        # fillC = None
-        #
-        # # Declare Figure Lists for Answers
-        # objAnswers = []
-        #
-        # # Assign Figures and Disect
-        # for figureName in problem.figures:
-        #     thisFigure = problem.figures[figureName]
-        #     figureList.append(thisFigure)
-        #     # If Figure is Figure A
-        #     if thisFigure.name == "A":
-        #         figureA = thisFigure
-        #         for objectName in figureA.objects:
-        #             thisObject = figureA.objects[objectName]
-        #             objA.append(thisObject)
-        #         for object in objA:
-        #             for attributeName in object.attributes:
-        #                 attrA = object.attributes
-        #         for key, value in attrA.items():
-        #             if key == "size":
-        #                 sizeA = value
-        #             if key == "fill":
-        #                 fillA = value
-        #             if key == "shape":
-        #                 shapeA = value
-        #     # If Figure is Figure B
-        #     elif thisFigure.name == "B":
-        #         figureB = thisFigure
-        #         for objectName in figureB.objects:
-        #             thisObject = figureB.objects[objectName]
-        #             objB.append(thisObject)
-        #         for object in objB:
-        #             for attributeName in object.attributes:
-        #                 attrB = object.attributes
-        #         for key, value in attrB.items():
-        #             if key == "size":
-        #                 sizeB = value
-        #             if key == "fill":
-        #                 fillB = value
-        #             if key == "shape":
-        #                 shapeB = value
-        #     # If Figure is Figure C
-        #     elif thisFigure.name == "C":
-        #         figureC = thisFigure
-        #         for objectName in figureC.objects:
-        #             thisObject = figureC.objects[objectName]
-        #             objC.append(thisObject)
-        #         for object in objC:
-        #             for attributeName in object.attributes:
-        #                 attrC = object.attributes
-        #         for key, value in attrC.items():
-        #             if key == "size":
-        #                 sizeC = value
-        #             if key == "fill":
-        #                 fillC = value
-        #             if key == "shape":
-        #                 shapeC = value
-            # If Figure is Answer Choice
-            #else:
-
-
-
-
-
-
-
-
-
-        # for objectName in thisFigure.objects:
-        #     thisObject = thisFigure.objects[objectName]
-        #     objectList.append(thisObject)
-        #
-        # # Get List of Attributes
-        # for attributeName in thisObject.attributes:
-        #     attributeValue = thisObject.attributes[attributeName]
-        #     attributeList.append(attributeValue)
-        #
-        #
-        # shape = []
-        # size = []
-        # fill = []
-        # for att in attributeList:
-        #     try:
-        #         if att == "square":
-        #             shape.append(att)
-        #     except KeyError:
-        #             pass
-        #     try:
-        #         if att == "size":
-        #             size.append(att.getValue())
-        #     except KeyError:
-        #             pass
-        #     try:
-        #         if att== "fill":
-        #             fill.append(att.getValue())
-        #     except KeyError:
-        #         pass
-        # print(shape)
-
-        # Get Question Figures
-        # a = problem.figures["A"]
-        # b = problem.figures["B"]
-        # c = problem.figures["C"]
-        #
-        # # Get Answer Figures
-        # one = problem.figures["1"]
-        # two = problem.figures["2"]
-        # three = problem.figures["3"]
-        # four = problem.figures["4"]
-        # five = problem.figures["5"]
-        # six = problem.figures["6"]
-        #
-        # # Get Question Figure Objects
-        #
-        #
-        # # Convert Question Figures to Images
-        # a = Image.open(a.visualFilename)
-        # b = Image.open(b.visualFilename)
-        # c = Image.open(c.visualFilename)
-        #
-        # # Convert Answer Figures to Images
-        # one = Image.open(one.visualFilename)
-        # two = Image.open(two.visualFilename)
-        # three = Image.open(three.visualFilename)
-        # four = Image.open(four.visualFilename)
-        # five = Image.open(five.visualFilename)
-        # six = Image.open(six.visualFilename)
-        #
-        # # Load Images
-        # aLoaded = a.load()
-        # bLoaded = b.load()
-        # cLoaded = c.load()
-        # oneLoaded = one.load()
-        # twoLoaded = two.load()
-        # threeLoaded = three.load()
-        # fourLoaded = four.load()
-        # fiveLoaded = five.load()
-        # sixLoaded = six.load()
-
-
-
-
-        return 2
