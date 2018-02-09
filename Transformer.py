@@ -4,7 +4,7 @@ import os
 import sys
 
 
-ci = 95
+ci = 98
 
 
 def reflect_horz(image):
